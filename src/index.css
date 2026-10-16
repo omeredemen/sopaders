@@ -1,0 +1,52 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+}
+
+:root {
+  color-scheme: light dark;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
+
+/*
+ * Recharts styling. Charts are wrapped in `.chart`; these rules override
+ * Recharts' presentation attributes so axes/grid follow light/dark mode.
+ */
+.chart {
+  --chart-grid: #e2e8f0;
+  --chart-text: #64748b;
+  --chart-surface: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  .chart {
+    --chart-grid: #1e293b;
+    --chart-text: #94a3b8;
+    --chart-surface: #0f172a;
+  }
+}
+.chart .recharts-cartesian-grid line {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+.chart .recharts-cartesian-axis-tick-value {
+  fill: var(--chart-text);
+}
+.chart .chart-dot {
+  stroke: var(--chart-surface);
+}
+.chart .chart-cursor {
+  stroke: var(--chart-text);
+  stroke-width: 1;
+}
+.chart .recharts-surface:focus,
+.chart .recharts-wrapper:focus {
+  outline: none;
+}
