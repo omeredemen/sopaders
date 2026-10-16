@@ -22,6 +22,17 @@ type Mode = 'file' | 'text';
 const NEW_LESSON = '__new__';
 const SAMPLE_CSV = 'ders,konu\nTürkçe,Sözcükte Anlam\nTürkçe,Cümlede Anlam\nTarih,İslamiyet Öncesi Türk Tarihi\n';
 const SAMPLE_TEXT = 'Türkçe:\n- Sözcükte Anlam\n- Cümlede Anlam\n\nTarih:\n- İslamiyet Öncesi Türk Tarihi\n';
+const samplePre = 'min-w-0 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60';
+
+/** The two accepted formats side by side; both tabs show the same examples. */
+function FormatSamples() {
+  return (
+    <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <pre className={samplePre}>{SAMPLE_CSV}</pre>
+      <pre className={samplePre}>{SAMPLE_TEXT}</pre>
+    </div>
+  );
+}
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20 dark:border-slate-700 dark:bg-slate-950';
@@ -133,7 +144,7 @@ export function TopicImportPage() {
     const parsed = parsePastedTopics(text, targetLessonName);
     if (parsed.some((r) => !r.lesson)) {
       setRows(null);
-      setError('Başlığı olmayan satırlar var: yukarıdan bir ders seç ya da metne “Ders adı:” başlığı ekle.');
+      setError('Dersi belli olmayan satırlar var: yukarıdan bir ders seç, satırları “ders,konu” yaz ya da metne “Ders adı:” başlığı ekle.');
       return;
     }
     setRows(parsed);
@@ -176,12 +187,11 @@ export function TopicImportPage() {
         {mode === 'file' ? (
           <section className={card}>
             <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-              Tek dosyada birden çok ders olabilir. İki sütunlu bir CSV veya Excel dosyası seçin: <strong>ders</strong> ve{' '}
-              <strong>konu</strong> (ilk satır başlık olabilir). Var olan derslerin konuları o derse eklenir; sınavda olmayan
-              dersler için ne yapılacağı sorulur; aynı konular atlanır. Düz metin (.txt) dosyası da seçebilirsin: içinde bu biçim ya da
-              “Metin yapıştır” sekmesindeki başlıklı biçim olabilir.
+              Tek dosyada birden çok ders olabilir. İki biçimden birini kullan: <strong>ders,konu</strong> sütunları (CSV, Excel)
+              ya da her dersin adı <strong>“Ders adı:”</strong> satırında, konuları altında (CSV veya .txt). Var olan derslerin
+              konuları o derse eklenir; sınavda olmayan dersler için ne yapılacağı sorulur; aynı konular atlanır.
             </p>
-            <pre className="mb-3 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">{SAMPLE_CSV}</pre>
+            <FormatSamples />
             <div className="flex flex-wrap items-center gap-2">
               <label className="inline-flex h-11 cursor-pointer items-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700 focus-within:ring-2 focus-within:ring-brand-600/40">
                 Dosya seç
@@ -190,24 +200,24 @@ export function TopicImportPage() {
               <Button variant="ghost" onClick={() => downloadFile('﻿' + SAMPLE_CSV, 'ornek-konular.csv', 'text/csv')}>
                 Örnek CSV indir
               </Button>
+              <Button variant="ghost" onClick={() => downloadFile('﻿' + SAMPLE_TEXT, 'ornek-konular.txt', 'text/plain')}>
+                Örnek metin indir
+              </Button>
             </div>
             {fileName && <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Seçilen: {fileName}</p>}
           </section>
         ) : (
           <section className={card}>
             <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-              Birden çok ders için her dersin adını <strong>“Ders adı:”</strong> şeklinde bir satıra yaz, konularını altına
-              sırala. Dosyadaki <strong>ders,konu</strong> biçimini yapıştırmak ya da Excel'den iki sütunu kopyalamak da olur.
-              Başlık kullanmıyorsan konuların ekleneceği dersi seç.
+              Dosyadaki iki biçimden birini yapıştır: her satıra <strong>ders,konu</strong> (Excel'den iki sütunu kopyalamak da
+              olur) ya da her dersin adı <strong>“Ders adı:”</strong> satırında, konuları altında. Sadece konu adlarını
+              yapıştırıyorsan konuların ekleneceği dersi aşağıdan seç.
             </p>
-            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <pre className="min-w-0 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">{SAMPLE_TEXT}</pre>
-              <pre className="min-w-0 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">{SAMPLE_CSV}</pre>
-            </div>
+            <FormatSamples />
             <label className="mb-3 block">
-              <span className="mb-1 block text-sm font-medium">Ders (başlıksız satırlar için)</span>
+              <span className="mb-1 block text-sm font-medium">Ders (dersi belirtilmeyen konular için)</span>
               <select value={targetLesson} onChange={(e) => setTargetLesson(e.target.value)} className={`h-11 ${inputClass}`}>
-                <option value="">Başlıklardan al</option>
+                <option value="">Metinden al</option>
                 {lessons.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
@@ -223,7 +233,7 @@ export function TopicImportPage() {
               </label>
             )}
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Konular (her satıra bir konu)</span>
+              <span className="mb-1 block text-sm font-medium">Konular</span>
               <textarea
                 value={text}
                 onChange={(e) => {
@@ -231,7 +241,7 @@ export function TopicImportPage() {
                   setRows(null);
                 }}
                 rows={8}
-                placeholder={'Türkçe:\nSözcükte Anlam\nCümlede Anlam\n\nTarih:\nKurtuluş Savaşı'}
+                placeholder={'Türkçe,Sözcükte Anlam\nya da\nTürkçe:\nSözcükte Anlam'}
                 className={`py-2 ${inputClass}`}
               />
             </label>

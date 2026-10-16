@@ -187,7 +187,9 @@ repositories via `useAction()`, which turns failures into an error toast. Subscr
   them. For lessons the exam doesn't have, the preview **asks** (`LessonDecisions`): create (default),
   add to an existing lesson (pre-selected when `findSimilarLesson`/`foldName` match ignoring Turkish
   letters, e.g. "TARIH" → "Tarih"), or skip. Decisions go to `planTopicImport(..., { lessonDecisions })`.
-- Plain text supports lesson headings (`Türkçe:` or `# Türkçe`); lines without a heading need a chosen lesson.
+- Both tabs (file and paste) accept both formats and show both samples: the `ders,konu` table and lesson
+  headings (`Türkçe:` or `# Türkçe`). `parsePastedTopics` picks the format; `.csv` files with headings are read
+  as headings too. Lines with no lesson need a chosen lesson.
 2. Append it to `TOPIC_PARSERS` in `parsers/registry.ts`.
 3. Add a `<format>Parser.test.ts`.
 

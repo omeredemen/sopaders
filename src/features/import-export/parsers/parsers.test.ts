@@ -124,8 +124,36 @@ describe('parsePastedTopics', () => {
     expect(parsePastedTopics('Tarih:\nOsmanlı Kültür, Medeniyet')).toEqual([expected[1]]);
   });
 
+  it('reads header-less "Türkçe,Sözcükte Anlam" lines as a table when no lesson is chosen', () => {
+    const rows = [
+      { lesson: 'Türkçe', topic: 'Sözcükte Anlam' },
+      { lesson: 'Tarih', topic: 'Kurtuluş Savaşı' },
+    ];
+    expect(parsePastedTopics('Türkçe,Sözcükte Anlam\nTarih,Kurtuluş Savaşı')).toEqual(rows);
+    expect(parsePastedTopics('Türkçe;Sözcükte Anlam\nTarih;Kurtuluş Savaşı')).toEqual(rows);
+    expect(parsePastedTopics('Osmanlı Kültür, Medeniyet', 'Tarih')).toEqual([expected[1]]);
+  });
+
   it('is what .txt files use', async () => {
     expect(await textParser.parse({ kind: 'file', file: fileFrom('ders,konu\nTürkçe,Sözcükte Anlam', 'a.txt') })).toEqual([expected[0]]);
+  });
+});
+
+describe('csvParser with the heading format', () => {
+  it('reads a .csv saved as "Ders:" headings with topic lines', async () => {
+    const file = fileFrom('Türkçe:\n- Sözcükte Anlam\n\nTarih:\n- Osmanlı Kültür, Medeniyet\n', 'a.csv');
+    expect(await csvParser.parse({ kind: 'file', file })).toEqual([
+      { lesson: 'Türkçe', topic: 'Sözcükte Anlam' },
+      { lesson: 'Tarih', topic: 'Osmanlı Kültür, Medeniyet' },
+    ]);
+  });
+
+  it('still treats rows ending in a colon as table rows', async () => {
+    const file = fileFrom('Tarih,Kurtuluş Savaşı:\nTürkçe,Yazım', 'a.csv');
+    expect(await csvParser.parse({ kind: 'file', file })).toEqual([
+      { lesson: 'Tarih', topic: 'Kurtuluş Savaşı:' },
+      { lesson: 'Türkçe', topic: 'Yazım' },
+    ]);
   });
 });
 
