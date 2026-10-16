@@ -122,7 +122,7 @@ export interface TrialTestRepository {
 
 // ---- Backup ----------------------------------------------------------------
 
-export type RestoreMode = 'merge' | 'replace';
+export type RestoreMode = 'merge' | 'restore' | 'replace';
 
 export interface RestoreSummary {
   added: number;
@@ -135,6 +135,8 @@ export interface BackupRepository {
   exportAll(): Promise<BackupData>;
   /**
    * 'merge': last-write-wins by updatedAt (mergeByUpdatedAt), keeping local records not in the backup.
+   * 'restore': records in the backup go back to the backup's version (restoreToBackup), keeping
+   *   records created here after the backup. `updated` counts the reverted records.
    * 'replace': delete everything local, then write the backup as-is.
    * Runs in one transaction where the backend supports it.
    */

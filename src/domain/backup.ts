@@ -177,3 +177,69 @@ export function previewMerge(local: BackupData, incoming: BackupData): MergePrev
   }
   return preview;
 }
+
+export interface RestoreResult<T> {
+  toWrite: T[];
+  /** Only in the backup: added. */
+  added: number;
+  /** Present here in a different version (edited or deleted since): set back to the backup's version. */
+  reverted: number;
+  /** Same version on both sides. */
+  identical: number;
+}
+
+/**
+ * "Back to the backup" restore: every record in the backup gets the backup's version
+ * (deleted ones come back, edits are undone); records created here after the backup are
+ * not touched. Reverted records get updatedAt = `now`, so the restore counts as the newest
+ * change and a later merge or sync won't undo it.
+ */
+export function restoreToBackup<T extends BaseRecord>(local: readonly T[], incoming: readonly T[], now: IsoDateTime): RestoreResult<T> {
+  const localById = new Map(local.map((r) => [r.id, r]));
+  const result: RestoreResult<T> = { toWrite: [], added: 0, reverted: 0, identical: 0 };
+  for (const record of incoming) {
+    const existing = localById.get(record.id);
+    if (!existing) {
+      result.toWrite.push(record);
+      result.added++;
+    } else if (existing.updatedAt === record.updatedAt) {
+      result.identical++;
+    } else {
+      result.toWrite.push({ ...record, updatedAt: now });
+      result.reverted++;
+    }
+  }
+  return result;
+}
+
+export interface RestorePreview {
+  added: number;
+  /** Deleted here since the backup: will come back. */
+  revived: number;
+  /** Edited here since the backup (or deleted in the backup): will be set back. */
+  reverted: number;
+  identical: number;
+  /** Active records that exist only here (added after the backup): kept as they are. */
+  keptHere: number;
+}
+
+/** Dry run of restoreToBackup across all tables, for the restore UI. */
+export function previewRestore(local: BackupData, incoming: BackupData): RestorePreview {
+  const preview: RestorePreview = { added: 0, revived: 0, reverted: 0, identical: 0, keptHere: 0 };
+  for (const table of BACKUP_TABLES) {
+    const incomingRecords = incoming[table] as BaseRecord[];
+    const incomingIds = new Set(incomingRecords.map((r) => r.id));
+    const localById = new Map((local[table] as BaseRecord[]).map((r) => [r.id, r]));
+    for (const record of incomingRecords) {
+      const existing = localById.get(record.id);
+      if (!existing) preview.added++;
+      else if (existing.updatedAt === record.updatedAt) preview.identical++;
+      else if (existing.deletedAt !== null && record.deletedAt === null) preview.revived++;
+      else preview.reverted++;
+    }
+    for (const record of localById.values()) {
+      if (!incomingIds.has(record.id) && record.deletedAt === null) preview.keptHere++;
+    }
+  }
+  return preview;
+}

@@ -5,6 +5,8 @@ import {
   mergeByUpdatedAt,
   parseBackupFile,
   previewMerge,
+  previewRestore,
+  restoreToBackup,
   type BackupData,
 } from './backup';
 
@@ -102,5 +104,39 @@ describe('previewMerge', () => {
     backup.topics[0] = { ...backup.topics[0]!, status: 'needs_review', updatedAt: '2026-10-09T00:00:00.000Z' };
     backup.lessons.push({ ...backup.lessons[0]!, id: 'l2', name: 'Tarih' });
     expect(previewMerge(local, backup)).toEqual({ added: 1, updated: 1, identical: 5, newerHere: 0, deletedHere: 0 });
+  });
+});
+
+describe('restoreToBackup', () => {
+  const NOW = '2026-10-20T00:00:00.000Z';
+
+  it('brings back deleted records, undoes edits, adds missing ones and stamps them as the newest change', () => {
+    const local = [
+      base('deleted-here', '2026-10-09T00:00:00.000Z', '2026-10-09T00:00:00.000Z'),
+      base('edited-here', '2026-10-09T00:00:00.000Z'),
+      base('same'),
+      base('added-here', '2026-10-09T00:00:00.000Z'),
+    ];
+    const backup = [base('deleted-here'), base('edited-here'), base('same'), base('only-in-backup')];
+    const result = restoreToBackup(local, backup, NOW);
+
+    expect(result.toWrite.map((r) => [r.id, r.updatedAt, r.deletedAt])).toEqual([
+      ['deleted-here', NOW, null],
+      ['edited-here', NOW, null],
+      ['only-in-backup', '2026-10-01T00:00:00.000Z', null],
+    ]);
+    expect([result.added, result.reverted, result.identical]).toEqual([1, 2, 1]);
+  });
+});
+
+describe('previewRestore', () => {
+  it('explains what going back to the backup will do', () => {
+    const backup = sampleData();
+    const local = sampleData();
+    // Deleted here after the backup (exam), edited here (lesson), and a new topic added here.
+    local.exams[0] = { ...local.exams[0]!, deletedAt: '2026-10-09T00:00:00.000Z', updatedAt: '2026-10-09T00:00:00.000Z' };
+    local.lessons[0] = { ...local.lessons[0]!, name: 'Edited', updatedAt: '2026-10-09T00:00:00.000Z' };
+    local.topics.push({ ...local.topics[0]!, id: 't-new', name: 'New here' });
+    expect(previewRestore(local, backup)).toEqual({ added: 0, revived: 1, reverted: 1, identical: 4, keptHere: 1 });
   });
 });

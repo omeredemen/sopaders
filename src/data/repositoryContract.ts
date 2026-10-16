@@ -213,6 +213,27 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
         expect((await repos.exams.list()).map((e) => e.id).sort()).toEqual([exam.id, extra.id, 'remote-exam'].sort());
       });
 
+      it('restore goes back to the backup but keeps records added since', async () => {
+        const { exam, turkce } = await seed();
+        const snapshot = await repos.backup.exportAll();
+        await new Promise((r) => setTimeout(r, 5));
+        await repos.lessons.delete(turkce.id); // also deletes its topics
+        const tarihTopics = await repos.topics.listByExam(exam.id);
+        await repos.topics.rename(tarihTopics[0]!.id, 'Edited after backup');
+        const added = await repos.exams.create({ name: 'Added after backup', examDate: '2027-01-01' });
+
+        const summary = await repos.backup.restore(snapshot, 'restore');
+        expect(summary.added).toBe(0);
+        expect(summary.updated).toBe(4); // turkce, t1, t2 revived; one topic renamed back
+        expect((await repos.lessons.listByExam(exam.id)).map((l) => l.name)).toEqual(['Türkçe', 'Tarih']);
+        expect((await repos.topics.listByExam(exam.id)).map((t) => t.name).sort()).toEqual(
+          ['Cümlede Anlam', 'Sözcükte Anlam', 'İslamiyet Öncesi'].sort(),
+        );
+        expect((await repos.exams.list()).map((e) => e.id).sort()).toEqual([exam.id, added.id].sort());
+        // Reverted records are stamped as the newest change.
+        expect((await repos.lessons.get(turkce.id))!.updatedAt > snapshot.lessons[0]!.updatedAt).toBe(true);
+      });
+
       it('notifies subscribers after restore', async () => {
         const listener = vi.fn();
         repos.changes.subscribe(listener);

@@ -6,10 +6,12 @@ import {
   createBackupFile,
   parseBackupFile,
   previewMerge,
+  previewRestore,
   type BackupData,
   type BackupError,
   type BackupFile,
   type MergePreview,
+  type RestorePreview,
 } from '@/domain/backup';
 import { todayLocalDate } from '@/domain/dates';
 import { nowIso } from '@/domain/records';
@@ -52,8 +54,32 @@ function MergeOutcome({ preview }: { preview: MergePreview }) {
         )}
       </ul>
       <p className="mt-1">
-        Yedekteki hali geri istiyorsan <strong>“Tümünü değiştir”</strong>i seç.
+        Yedekteki hali geri istiyorsan <strong>“Yedeğe geri dön”</strong>ü seç (sonradan eklediklerin korunur).
       </p>
+    </div>
+  );
+}
+
+/** Explains what "back to the backup" will do. */
+function RestoreOutcome({ preview }: { preview: RestorePreview }) {
+  const changes = preview.added + preview.revived + preview.reverted;
+  if (changes === 0) {
+    return (
+      <div role="status" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="font-medium">Geri dönülecek bir şey yok.</p>
+        <p>Yedekteki her şey bu cihazda zaten aynen var.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60">
+      <p className="font-medium">Yedeğe dönünce:</p>
+      <ul className="mt-1 list-disc pl-5">
+        {preview.revived > 0 && <li>{preview.revived} silinmiş kayıt geri gelir</li>}
+        {preview.reverted > 0 && <li>{preview.reverted} kayıt yedekteki haline döner (sonraki değişiklikler geri alınır)</li>}
+        {preview.added > 0 && <li>{preview.added} kayıt eklenir</li>}
+        {preview.keptHere > 0 && <li>Yedekten sonra eklediğin {preview.keptHere} kayıt olduğu gibi kalır</li>}
+      </ul>
     </div>
   );
 }
@@ -76,7 +102,13 @@ export function BackupSection() {
   const repos = useRepositories();
   const run = useAction();
   const toast = useToast();
-  const [pending, setPending] = useState<{ backup: BackupFile; fileName: string; local: BackupData; preview: MergePreview } | null>(null);
+  const [pending, setPending] = useState<{
+    backup: BackupFile;
+    fileName: string;
+    local: BackupData;
+    preview: MergePreview;
+    restorePreview: RestorePreview;
+  } | null>(null);
   const [mode, setMode] = useState<RestoreMode>('merge');
   const [error, setError] = useState('');
   const [confirmReplace, setConfirmReplace] = useState(false);
@@ -103,7 +135,13 @@ export function BackupSection() {
     // Dry run against the current data so the outcome is shown before restoring.
     const local = await run(() => repos.backup.exportAll());
     if (!local) return;
-    setPending({ backup: result.backup, fileName: file.name, local, preview: previewMerge(local, result.backup.data) });
+    setPending({
+      backup: result.backup,
+      fileName: file.name,
+      local,
+      preview: previewMerge(local, result.backup.data),
+      restorePreview: previewRestore(local, result.backup.data),
+    });
     setMode('merge');
   };
 
@@ -118,11 +156,16 @@ export function BackupSection() {
     toast(
       mode === 'replace'
         ? 'Veriler yedekle değiştirildi'
-        : `Birleştirildi: ${summary.added} yeni, ${summary.updated} güncellenen kayıt`,
+        : mode === 'restore'
+          ? `Yedeğe dönüldü: ${summary.updated} kayıt geri alındı, ${summary.added} kayıt eklendi`
+          : `Birleştirildi: ${summary.added} yeni, ${summary.updated} güncellenen kayıt`,
     );
   };
 
-  const nothingToMerge = pending !== null && pending.preview.added + pending.preview.updated === 0;
+  const nothingToDo =
+    pending !== null &&
+    ((mode === 'merge' && pending.preview.added + pending.preview.updated === 0) ||
+      (mode === 'restore' && pending.restorePreview.added + pending.restorePreview.revived + pending.restorePreview.reverted === 0));
 
   return (
     <section className="rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900">
@@ -167,6 +210,13 @@ export function BackupSection() {
               </span>
             </label>
             <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="restore-mode" checked={mode === 'restore'} onChange={() => setMode('restore')} className="mt-1" />
+              <span>
+                <strong>Yedeğe geri dön.</strong> Yedekteki kayıtlar yedekteki haline döner, silinenler geri gelir. Yedekten
+                sonra eklediğin yeni kayıtlar silinmez.
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
               <input type="radio" name="restore-mode" checked={mode === 'replace'} onChange={() => setMode('replace')} className="mt-1" />
               <span>
                 <strong>Tümünü değiştir.</strong> Bu cihazdaki tüm veriler silinir, yerine yedek yüklenir.
@@ -176,6 +226,8 @@ export function BackupSection() {
 
           {mode === 'merge' ? (
             <MergeOutcome preview={pending.preview} />
+          ) : mode === 'restore' ? (
+            <RestoreOutcome preview={pending.restorePreview} />
           ) : (
             <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
               Bu cihazdaki veriler ({describeCounts(pending.local)}) silinir, yerine yedektekiler yüklenir.
@@ -188,10 +240,10 @@ export function BackupSection() {
             </Button>
             <Button
               variant={mode === 'replace' ? 'danger' : 'primary'}
-              disabled={busy || (mode === 'merge' && nothingToMerge)}
+              disabled={busy || nothingToDo}
               onClick={() => (mode === 'replace' ? setConfirmReplace(true) : restore())}
             >
-              {mode === 'merge' && nothingToMerge ? 'Değişecek bir şey yok' : 'Geri yükle'}
+              {nothingToDo ? 'Değişecek bir şey yok' : mode === 'restore' ? 'Yedeğe geri dön' : 'Geri yükle'}
             </Button>
           </div>
         </div>

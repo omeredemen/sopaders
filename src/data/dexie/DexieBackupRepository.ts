@@ -1,4 +1,5 @@
-import { BACKUP_TABLES, mergeByUpdatedAt, type BackupData } from '@/domain/backup';
+import { BACKUP_TABLES, mergeByUpdatedAt, restoreToBackup, type BackupData } from '@/domain/backup';
+import { nowIso } from '@/domain/records';
 import type { BaseRecord } from '@/domain/types';
 import type { Table } from 'dexie';
 import type { ChangeEmitter } from '../changeEmitter';
@@ -31,6 +32,7 @@ export class DexieBackupRepository implements BackupRepository {
   async restore(data: BackupData, mode: RestoreMode): Promise<RestoreSummary> {
     const tables = this.tables();
     const summary: RestoreSummary = { added: 0, updated: 0, unchanged: 0 };
+    const now = nowIso();
 
     await this.db.transaction('rw', Object.values(tables), async () => {
       for (const name of BACKUP_TABLES) {
@@ -40,6 +42,12 @@ export class DexieBackupRepository implements BackupRepository {
           await table.clear();
           await table.bulkAdd(incoming);
           summary.added += incoming.length;
+        } else if (mode === 'restore') {
+          const restored = restoreToBackup(await table.toArray(), incoming, now);
+          await table.bulkPut(restored.toWrite);
+          summary.added += restored.added;
+          summary.updated += restored.reverted;
+          summary.unchanged += restored.identical;
         } else {
           const merged = mergeByUpdatedAt(await table.toArray(), incoming);
           await table.bulkPut(merged.toWrite);

@@ -190,7 +190,9 @@ repositories via `useAction()`, which turns failures into an error toast. Subscr
 - `parseBackupFile` validates before anything is written. When the stored shape changes, bump
   `BACKUP_SCHEMA_VERSION` and migrate older files inside `parseBackupFile`.
 - Restore `merge` = `mergeByUpdatedAt` per table (newest `updatedAt` wins, ties keep local, so a
-  later local delete is kept). `replace` = clear + write. The same merge rule is meant for Supabase sync.
+  later local delete is kept). `restore` ("Yedeğe geri dön") = `restoreToBackup`: every record in the
+  backup goes back to the backup's version (deleted ones revive, edits are undone) with `updatedAt = now`,
+  and records created after the backup are kept. `replace` = clear + write. The merge rule is meant for Supabase sync.
 - The restore UI first runs `previewMerge(local, backup)` (dry run) and explains the outcome. If a merge
   would change nothing (same-device backup, or things deleted or edited here since), it says why and points
   to "Tümünü değiştir" instead of silently reporting "0 yeni".

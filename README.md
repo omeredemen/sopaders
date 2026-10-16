@@ -78,6 +78,11 @@ Also works on desktop Chrome/Edge (install icon in the address bar) and on iPhon
 - **Phone ↔ computer:** download a backup on one device (Ayarlar → Yedeği indir), send the file to
   yourself (e.g. email or Google Drive), then on the other device use Ayarlar → Yedekten geri yükle →
   **Birleştir**. The most recently changed version of each record wins.
+- **Undo mistakes on the same device** (deleted an exam, edited the wrong thing): restore a backup with
+  **Yedeğe geri dön**. Everything in the backup returns to its backed-up state, and things you added
+  after the backup are kept.
+- **Updating the app never touches your data.** A new version (a `git push` → automatic redeploy) only
+  replaces the app's code; the open app shows "Yeni sürüm hazır" and everything stays after **Güncelle**.
 
 ## Project status
 
