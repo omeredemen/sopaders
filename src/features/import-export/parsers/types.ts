@@ -19,7 +19,7 @@ export interface TopicParser {
   label: string;
   /** File extensions handled (lowercase, with dot). Empty for text-only parsers. */
   extensions: string[];
-  /** True if this parser needs ParseOptions.targetLessonName. */
+  /** True if rows may lack a lesson and need ParseOptions.targetLessonName (e.g. plain text without headings). */
   needsTargetLesson: boolean;
   parse(source: ImportSource, options?: ParseOptions): Promise<ParsedTopicRow[]>;
 }

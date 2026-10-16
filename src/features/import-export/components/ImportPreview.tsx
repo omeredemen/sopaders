@@ -17,7 +17,11 @@ export function ImportPreview({ plan }: { plan: TopicImportPlan }) {
     group.topics.push(t.topicName);
     groups.set(t.lessonName, group);
   }
-  const skipped = [...plan.duplicates.map((r) => ({ ...r, reason: 'Zaten var' })), ...plan.invalid.map((r) => ({ ...r, reason: 'Eksik' }))];
+  const skipped = [
+    ...plan.duplicates.map((r) => ({ ...r, reason: 'Zaten var' })),
+    ...plan.skipped.map((r) => ({ ...r, reason: 'Ders atlandı' })),
+    ...plan.invalid.map((r) => ({ ...r, reason: 'Eksik' })),
+  ];
 
   return (
     <div>

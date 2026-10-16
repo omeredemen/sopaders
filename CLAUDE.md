@@ -181,6 +181,13 @@ repositories via `useAction()`, which turns failures into an error toast. Subscr
    skipping duplicates is done by `planTopicImport` in the domain. For table-like formats, reuse
    `tableToTopicRows` (header detection) and `readSourceText` (UTF-8 / Windows-1254 decoding).
    Load big libraries with dynamic `import()` inside `parse` (see xlsxParser).
+
+### Topic import flow
+- One file can contain many lessons. Rows of existing lessons (matched by `normalizeName`) go under
+  them. For lessons the exam doesn't have, the preview **asks** (`LessonDecisions`): create (default),
+  add to an existing lesson (pre-selected when `findSimilarLesson`/`foldName` match ignoring Turkish
+  letters, e.g. "TARIH" → "Tarih"), or skip. Decisions go to `planTopicImport(..., { lessonDecisions })`.
+- Plain text supports lesson headings (`Türkçe:` or `# Türkçe`); lines without a heading need a chosen lesson.
 2. Append it to `TOPIC_PARSERS` in `parsers/registry.ts`.
 3. Add a `<format>Parser.test.ts`.
 

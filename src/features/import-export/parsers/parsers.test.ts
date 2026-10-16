@@ -77,8 +77,29 @@ describe('textParser', () => {
     ]);
   });
 
-  it('requires a target lesson', async () => {
-    await expect(textParser.parse({ kind: 'text', text: 'x' })).rejects.toThrow();
+  it('reads several lessons from headings ("Ders:" or "# Ders")', async () => {
+    const text = 'Türkçe:\n- Sözcükte Anlam\n- Paragraf\n\n# Tarih\n• Kurtuluş Savaşı\nCoğrafya :\nİklim';
+    expect(await textParser.parse({ kind: 'text', text })).toEqual([
+      { lesson: 'Türkçe', topic: 'Sözcükte Anlam' },
+      { lesson: 'Türkçe', topic: 'Paragraf' },
+      { lesson: 'Tarih', topic: 'Kurtuluş Savaşı' },
+      { lesson: 'Coğrafya', topic: 'İklim' },
+    ]);
+  });
+
+  it('puts lines before the first heading into the target lesson, or leaves the lesson empty', async () => {
+    const text = 'Genel Tekrar\nTarih:\nOsmanlı';
+    expect(await textParser.parse({ kind: 'text', text }, { targetLessonName: 'Türkçe' })).toEqual([
+      { lesson: 'Türkçe', topic: 'Genel Tekrar' },
+      { lesson: 'Tarih', topic: 'Osmanlı' },
+    ]);
+    expect((await textParser.parse({ kind: 'text', text }))[0]).toEqual({ lesson: '', topic: 'Genel Tekrar' });
+  });
+
+  it('does not treat a bulleted line ending in a colon as a heading', async () => {
+    expect(await textParser.parse({ kind: 'text', text: '- Örnek:' }, { targetLessonName: 'Türkçe' })).toEqual([
+      { lesson: 'Türkçe', topic: 'Örnek:' },
+    ]);
   });
 });
 
