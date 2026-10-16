@@ -16,7 +16,7 @@ import { LessonDecisions, type LessonChoice } from '../components/LessonDecision
 import { applyTopicImport } from '../logic/applyTopicImport';
 import { readSourceText } from '../parsers/tableRows';
 import { ACCEPTED_FILE_EXTENSIONS, findParserForFile } from '../parsers/registry';
-import { parseTopicText } from '../parsers/textParser';
+import { parsePastedTopics } from '../parsers/textParser';
 
 type Mode = 'file' | 'text';
 const NEW_LESSON = '__new__';
@@ -111,7 +111,7 @@ export function TopicImportPage() {
         const content = await readSourceText({ kind: 'file', file });
         setText(content);
         setMode('text');
-        const parsed = parseTopicText(content);
+        const parsed = parsePastedTopics(content);
         if (parsed.length > 0 && parsed.every((r) => r.lesson)) setRows(parsed);
         return;
       }
@@ -130,7 +130,7 @@ export function TopicImportPage() {
 
   const previewText = () => {
     setError('');
-    const parsed = parseTopicText(text, targetLessonName);
+    const parsed = parsePastedTopics(text, targetLessonName);
     if (parsed.some((r) => !r.lesson)) {
       setRows(null);
       setError('Başlığı olmayan satırlar var: yukarıdan bir ders seç ya da metne “Ders adı:” başlığı ekle.');
@@ -178,7 +178,8 @@ export function TopicImportPage() {
             <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
               Tek dosyada birden çok ders olabilir. İki sütunlu bir CSV veya Excel dosyası seçin: <strong>ders</strong> ve{' '}
               <strong>konu</strong> (ilk satır başlık olabilir). Var olan derslerin konuları o derse eklenir; sınavda olmayan
-              dersler için ne yapılacağı sorulur; aynı konular atlanır. Düz metin (.txt) dosyası da seçebilirsin; biçimi “Metin yapıştır” sekmesinde.
+              dersler için ne yapılacağı sorulur; aynı konular atlanır. Düz metin (.txt) dosyası da seçebilirsin: içinde bu biçim ya da
+              “Metin yapıştır” sekmesindeki başlıklı biçim olabilir.
             </p>
             <pre className="mb-3 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">{SAMPLE_CSV}</pre>
             <div className="flex flex-wrap items-center gap-2">
@@ -196,9 +197,13 @@ export function TopicImportPage() {
           <section className={card}>
             <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
               Birden çok ders için her dersin adını <strong>“Ders adı:”</strong> şeklinde bir satıra yaz, konularını altına
-              sırala. Başlık kullanmıyorsan konuların ekleneceği dersi seç.
+              sırala. Dosyadaki <strong>ders,konu</strong> biçimini yapıştırmak ya da Excel'den iki sütunu kopyalamak da olur.
+              Başlık kullanmıyorsan konuların ekleneceği dersi seç.
             </p>
-            <pre className="mb-3 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">{SAMPLE_TEXT}</pre>
+            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <pre className="min-w-0 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">{SAMPLE_TEXT}</pre>
+              <pre className="min-w-0 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">{SAMPLE_CSV}</pre>
+            </div>
             <label className="mb-3 block">
               <span className="mb-1 block text-sm font-medium">Ders (başlıksız satırlar için)</span>
               <select value={targetLesson} onChange={(e) => setTargetLesson(e.target.value)} className={`h-11 ${inputClass}`}>

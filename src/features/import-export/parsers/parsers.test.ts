@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { csvParser } from './csvParser';
 import { findParserForFile } from './registry';
 import { decodeText, tableToTopicRows } from './tableRows';
-import { textParser } from './textParser';
+import { looksLikeTable, parsePastedTopics, textParser } from './textParser';
 import { xlsxParser } from './xlsxParser';
 
 const fileFrom = (content: BlobPart, name: string) => new File([content], name);
@@ -100,6 +100,32 @@ describe('textParser', () => {
     expect(await textParser.parse({ kind: 'text', text: '- Örnek:' }, { targetLessonName: 'Türkçe' })).toEqual([
       { lesson: 'Türkçe', topic: 'Örnek:' },
     ]);
+  });
+});
+
+describe('parsePastedTopics', () => {
+  const expected = [
+    { lesson: 'Türkçe', topic: 'Sözcükte Anlam' },
+    { lesson: 'Tarih', topic: 'Osmanlı Kültür, Medeniyet' },
+  ];
+
+  it('accepts the same "ders,konu" CSV as files, with comma or semicolon', () => {
+    expect(parsePastedTopics('ders,konu\nTürkçe,Sözcükte Anlam\nTarih,"Osmanlı Kültür, Medeniyet"\n')).toEqual(expected);
+    expect(parsePastedTopics('Ders;Konu\r\nTürkçe;Sözcükte Anlam\r\nTarih;Osmanlı Kültür, Medeniyet')).toEqual(expected);
+  });
+
+  it('accepts tab-separated cells copied from a spreadsheet, with or without a header', () => {
+    expect(parsePastedTopics('Türkçe\tSözcükte Anlam\nTarih\tOsmanlı Kültür, Medeniyet\n')).toEqual(expected);
+    expect(parsePastedTopics('DERS\tKONU\nTürkçe\tSözcükte Anlam\nTarih\tOsmanlı Kültür, Medeniyet')).toEqual(expected);
+  });
+
+  it('keeps the heading format for everything else, even topics containing commas', () => {
+    expect(looksLikeTable('Tarih:\nOsmanlı Kültür, Medeniyet')).toBe(false);
+    expect(parsePastedTopics('Tarih:\nOsmanlı Kültür, Medeniyet')).toEqual([expected[1]]);
+  });
+
+  it('is what .txt files use', async () => {
+    expect(await textParser.parse({ kind: 'file', file: fileFrom('ders,konu\nTürkçe,Sözcükte Anlam', 'a.txt') })).toEqual([expected[0]]);
   });
 });
 

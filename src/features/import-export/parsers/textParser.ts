@@ -1,5 +1,6 @@
-import type { ParsedTopicRow } from '@/domain/importPlan';
-import { readSourceText } from './tableRows';
+import Papa from 'papaparse';
+import { normalizeName, type ParsedTopicRow } from '@/domain/importPlan';
+import { readSourceText, tableToTopicRows } from './tableRows';
 import type { TopicParser } from './types';
 
 /** Leading list markers to strip ("- ", "• ", "* "). Numbers are kept: "1. Dünya Savaşı" is a real name. */
@@ -41,12 +42,37 @@ export function parseTopicText(text: string, targetLessonName = ''): ParsedTopic
   return rows;
 }
 
+/** A "ders,konu" / "lesson;topic" header line, as in the CSV sample. */
+const TABLE_HEADER = /^(ders|ders adı|lesson)\s*[,;\t]\s*(konu|konu adı|topic)\s*$/;
+
+/**
+ * True if pasted text is table data rather than one topic per line: either it starts
+ * with the CSV header ("ders,konu", same as the file sample), or every line has a tab
+ * (cells copied from Excel / Google Sheets).
+ */
+export function looksLikeTable(text: string): boolean {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return false;
+  if (TABLE_HEADER.test(normalizeName(lines[0]!))) return true;
+  return text.split(/\r?\n/).filter((l) => l.trim()).every((l) => l.includes('\t'));
+}
+
+/**
+ * Pasted text or a .txt file: accepts the same "ders,konu" table format as CSV files
+ * (and tab-separated cells copied from a spreadsheet), otherwise the heading format.
+ */
+export function parsePastedTopics(text: string, targetLessonName = ''): ParsedTopicRow[] {
+  if (!looksLikeTable(text)) return parseTopicText(text, targetLessonName);
+  const result = Papa.parse<string[]>(text.trim(), { skipEmptyLines: 'greedy', delimitersToGuess: [',', ';', '\t', '|'] });
+  return tableToTopicRows(result.data);
+}
+
 export const textParser: TopicParser = {
   id: 'text',
   label: 'Metin',
   extensions: ['.txt', '.md'],
   needsTargetLesson: true,
   async parse(source, options) {
-    return parseTopicText(await readSourceText(source), options?.targetLessonName);
+    return parsePastedTopics(await readSourceText(source), options?.targetLessonName);
   },
 };
