@@ -1,6 +1,7 @@
-import { validateTrialCounts } from '@/domain/net';
 import { isLocalDate } from '@/domain/dates';
+import { cleanName } from '@/domain/importPlan';
 import { createRecord, isActive, nowIso, softDelete, updateRecord } from '@/domain/records';
+import { validateTrialResults } from '@/domain/trials';
 import type { Id, TrialTest, TrialTestWrongTopic } from '@/domain/types';
 import type { ChangeEmitter } from '../changeEmitter';
 import {
@@ -14,10 +15,10 @@ import {
 import { CASCADE_TABLES, deleteTrialTestsCascade } from './cascade';
 import type { StudyDatabase } from './db';
 
-function assertValid(test: Pick<TrialTest, 'date' | 'correct' | 'wrong' | 'empty'>) {
+function assertValid(test: Pick<TrialTest, 'date' | 'results'>) {
   if (!isLocalDate(test.date)) throw new ValidationError(`Invalid trial test date: ${test.date}`);
-  const error = validateTrialCounts(test);
-  if (error) throw new ValidationError(`Invalid trial test counts: ${error}`);
+  const error = validateTrialResults(test.results);
+  if (error) throw new ValidationError(`Invalid trial test results: ${JSON.stringify(error)}`);
 }
 
 export class DexieTrialTestRepository implements TrialTestRepository {
@@ -66,8 +67,8 @@ export class DexieTrialTestRepository implements TrialTestRepository {
   }
 
   async create(input: TrialTestInput): Promise<TrialTestWithTopics> {
-    const { wrongTopicIds = [], notes = '', ...fields } = input;
-    const test = createRecord<TrialTest>({ ...fields, notes });
+    const { wrongTopicIds = [], notes = '', name = '', ...fields } = input;
+    const test = createRecord<TrialTest>({ ...fields, name: cleanName(name), notes });
     assertValid(test);
     await this.db.transaction('rw', this.db.trialTests, this.db.trialTestWrongTopics, async () => {
       await this.db.trialTests.add(test);
@@ -79,6 +80,7 @@ export class DexieTrialTestRepository implements TrialTestRepository {
 
   async update(id: Id, patch: TrialTestPatch): Promise<TrialTestWithTopics> {
     const { wrongTopicIds, ...fields } = patch;
+    if (fields.name !== undefined) fields.name = cleanName(fields.name);
     await this.db.transaction('rw', this.db.trialTests, this.db.trialTestWrongTopics, async () => {
       const existing = await this.db.trialTests.get(id);
       if (!existing || !isActive(existing)) throw new NotFoundError('TrialTest', id);

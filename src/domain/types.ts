@@ -25,6 +25,11 @@ export interface Exam extends BaseRecord {
   studyDeadline: LocalDate | null;
   /** How many wrong answers cancel one correct answer. 0 means no penalty. */
   wrongPenalty: number;
+  /**
+   * Fixed number of questions per lesson in this exam's trial tests (lessonId → count).
+   * Lessons without an entry are entered freely (D/Y/B). Keys of deleted lessons are ignored.
+   */
+  trialQuestionCounts: Record<Id, number>;
 }
 
 export interface Lesson extends BaseRecord {
@@ -41,14 +46,25 @@ export interface Topic extends BaseRecord {
   order: number;
 }
 
-/** A trial test result for one lesson. Net is never stored; see calculateNet(). */
-export interface TrialTest extends BaseRecord {
-  examId: Id;
+/** One lesson's answers in a trial test. Net is never stored; see calculateNet(). */
+export interface TrialLessonResult {
   lessonId: Id;
-  date: LocalDate;
   correct: number;
   wrong: number;
   empty: number;
+}
+
+/**
+ * A trial test (deneme) of a whole exam: one result per lesson that was in it.
+ * A single-lesson test ("branş denemesi") is just a test with one result.
+ */
+export interface TrialTest extends BaseRecord {
+  examId: Id;
+  /** Optional label, e.g. publisher and number. "" when not given. */
+  name: string;
+  date: LocalDate;
+  /** At most one result per lesson. */
+  results: TrialLessonResult[];
   notes: string;
 }
 

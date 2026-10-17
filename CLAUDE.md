@@ -54,7 +54,7 @@ src/
 ├── index.css                  # Tailwind entry + theme tokens
 ├── config/topicStatuses.ts    # THE status list
 ├── domain/
-│   ├── types.ts               # Exam, Lesson, Topic, TrialTest, TrialTestWrongTopic, BaseRecord
+│   ├── types.ts               # Exam, Lesson, Topic, TrialTest (+ TrialLessonResult), TrialTestWrongTopic, BaseRecord
 │   ├── records.ts             # newId (UUID v4), createRecord/updateRecord/softDelete, byOrder
 │   ├── statuses.ts            # getTopicStatus, nextTopicStatus, isDoneStatus
 │   ├── net.ts                 # calculateNet, validateTrialCounts
@@ -65,7 +65,7 @@ src/
 │   ├── importPlan.ts          # planTopicImport (dedupe/match lessons), name normalization
 │   ├── dashboard.ts           # buildExamDashboard (all dashboard numbers for one exam)
 │   ├── ordering.ts            # moveItem
-│   ├── trials.ts              # netSeriesByLesson, netStats, topicsToMarkForReview
+│   ├── trials.ts              # totalNet, netSeriesByLesson, totalNetSeries, validateTrialResults, topicsToMarkForReview
 │   ├── backup.ts              # backup file format, parseBackupFile (validation), mergeByUpdatedAt
 │   └── index.ts               # barrel export
 ├── data/
@@ -152,6 +152,15 @@ repositories via `useAction()`, which turns failures into an error toast. Subscr
   so nothing is available only on hover.
 
 ### Trial tests
+- A trial test (deneme) covers the whole exam: `results: TrialLessonResult[]`, one `{ lessonId, correct, wrong, empty }`
+  per lesson in it (validated by `validateTrialResults`), plus an optional `name`. The form shows every lesson. Blank
+  lessons are left out, so a single-lesson test (branş denemesi) is just a test with one result. Total net =
+  `totalNet(results)`. The "Toplam net" chart (`totalNetSeries`) only uses tests with more than one lesson.
+- Deleting a lesson removes its result from tests. A test left with no results is deleted.
+- Question counts are fixed per exam: `exam.trialQuestionCounts` (lessonId → count, set in `QuestionCountsDialog` on
+  the Denemeler page, validated by `isValidQuestionCount`). For those lessons the form asks only D and Y, and
+  Boş = `emptyFromQuestionCount`. Lessons without a count are entered as D/Y/B. `empty` is still stored on every
+  result, so changing the counts later doesn't change saved tests.
 - `features/trials/logic/saveTrialTest.ts` is the cross-repository use case: save the test, then set
   **newly added** wrong topics (`topicsToMarkForReview`) to `REVIEW_TOPIC_STATUS_ID`. Re-saving an old
   test must not re-mark topics the user has reviewed since.
@@ -163,7 +172,8 @@ repositories via `useAction()`, which turns failures into an error toast. Subscr
 - Inside a Dexie transaction, every awaited step must be a Dexie call. Don't `await`
   non-Dexie promises (fetch, timers) inside one, and don't early-return from helper
   functions mid-transaction. Either can auto-commit the transaction too early
-  (`PrematureCommitError`).
+  (`PrematureCommitError`). `bulkPut([])` sends no request either, so prefer `modify()` on a collection. Keep
+  cascades flat: Dexie only follows native `await` through a few levels of nested async helpers.
 
 ## How to…
 

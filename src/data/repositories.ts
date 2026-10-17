@@ -11,7 +11,7 @@
  * - Lists come back sorted (lessons/topics by `order`, exams by date, trial tests by date).
  */
 import type { BackupData } from '@/domain/backup';
-import type { Exam, Id, LocalDate, Lesson, Topic, TrialTest } from '@/domain/types';
+import type { Exam, Id, LocalDate, Lesson, Topic, TrialLessonResult, TrialTest } from '@/domain/types';
 
 export type EntityName = 'exams' | 'lessons' | 'topics' | 'trialTests';
 
@@ -32,6 +32,8 @@ export interface ExamInput {
   studyDeadline?: LocalDate | null;
   /** Defaults to DEFAULT_WRONG_PENALTY. */
   wrongPenalty?: number;
+  /** Defaults to {}. Every value must pass isValidQuestionCount. */
+  trialQuestionCounts?: Record<Id, number>;
 }
 
 export type ExamPatch = Partial<ExamInput>;
@@ -61,7 +63,10 @@ export interface LessonRepository {
   rename(id: Id, name: string): Promise<Lesson>;
   /** Sets `order` to each id's index in `orderedIds`. */
   reorder(examId: Id, orderedIds: Id[]): Promise<void>;
-  /** Soft-deletes the lesson with its topics and trial tests. */
+  /**
+   * Soft-deletes the lesson with its topics, and removes its result from trial tests
+   * (a test left without results is deleted).
+   */
   delete(id: Id): Promise<void>;
 }
 
@@ -94,11 +99,10 @@ export interface TopicRepository {
 
 export interface TrialTestInput {
   examId: Id;
-  lessonId: Id;
+  name?: string;
   date: LocalDate;
-  correct: number;
-  wrong: number;
-  empty: number;
+  /** One per lesson in the test; at least one. Validated with validateTrialResults. */
+  results: TrialLessonResult[];
   notes?: string;
   wrongTopicIds?: Id[];
 }

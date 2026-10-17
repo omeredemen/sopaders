@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { migrateExamV2, migrateTrialTestV1 } from '@/domain/backup';
 import type { Exam, Lesson, Topic, TrialTest, TrialTestWrongTopic } from '@/domain/types';
 
 /** Internal identifier from the original name "study-tracker". Do NOT rename it: every device would open a new, empty database. */
@@ -25,5 +26,27 @@ export class StudyDatabase extends Dexie {
       trialTests: 'id, examId, lessonId, updatedAt',
       trialTestWrongTopics: 'id, trialTestId, topicId, updatedAt',
     });
+    // A trial test covers the whole exam: per-lesson `results` instead of one `lessonId`.
+    this.version(2)
+      .stores({ trialTests: 'id, examId, updatedAt' })
+      .upgrade((tx) =>
+        tx
+          .table('trialTests')
+          .toCollection()
+          .modify((test: Record<string, unknown>, ref: { value: unknown }) => {
+            ref.value = migrateTrialTestV1(test);
+          }),
+      );
+    // Exams get fixed per-lesson question counts for trial tests.
+    this.version(3)
+      .stores({})
+      .upgrade((tx) =>
+        tx
+          .table('exams')
+          .toCollection()
+          .modify((exam: Record<string, unknown>, ref: { value: unknown }) => {
+            ref.value = migrateExamV2(exam);
+          }),
+      );
   }
 }

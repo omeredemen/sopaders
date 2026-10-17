@@ -45,6 +45,16 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
         expect((await repos.exams.get(exam.id))?.wrongPenalty).toBe(3);
       });
 
+      it('stores trial question counts (default {}) and rejects invalid ones', async () => {
+        const exam = await repos.exams.create({ name: 'KPSS', examDate: '2026-12-01' });
+        expect(exam.trialQuestionCounts).toEqual({});
+        const updated = await repos.exams.update(exam.id, { trialQuestionCounts: { l1: 30, l2: 27 } });
+        expect((await repos.exams.get(exam.id))?.trialQuestionCounts).toEqual({ l1: 30, l2: 27 });
+        expect(updated.updatedAt >= exam.updatedAt).toBe(true);
+        await expect(repos.exams.update(exam.id, { trialQuestionCounts: { l1: 0 } })).rejects.toThrow();
+        await expect(repos.exams.update(exam.id, { trialQuestionCounts: { l1: 2.5 } })).rejects.toThrow();
+      });
+
       it('rejects invalid exams', async () => {
         await expect(repos.exams.create({ name: '', examDate: '2026-12-01' })).rejects.toThrow();
         await expect(
@@ -55,7 +65,7 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
       it('delete cascades to lessons, topics and trial tests', async () => {
         const { exam, turkce, t1 } = await seed();
         await repos.trialTests.create({
-          examId: exam.id, lessonId: turkce.id, date: '2026-10-15', correct: 10, wrong: 2, empty: 0, wrongTopicIds: [t1.id],
+          examId: exam.id, date: '2026-10-15', results: [{ lessonId: turkce.id, correct: 10, wrong: 2, empty: 0 }], wrongTopicIds: [t1.id],
         });
         await repos.exams.delete(exam.id);
         expect(await repos.exams.get(exam.id)).toBeUndefined();
@@ -66,6 +76,25 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
     });
 
     describe('lessons', () => {
+      it('delete removes its results from trial tests and deletes tests left empty', async () => {
+        const { exam, turkce, tarih, t1, t3 } = await seed();
+        const full = await repos.trialTests.create({
+          examId: exam.id, date: '2026-10-10', wrongTopicIds: [t1.id, t3.id],
+          results: [
+            { lessonId: turkce.id, correct: 30, wrong: 8, empty: 2 },
+            { lessonId: tarih.id, correct: 20, wrong: 4, empty: 3 },
+          ],
+        });
+        const turkceOnly = await repos.trialTests.create({
+          examId: exam.id, date: '2026-10-11', results: [{ lessonId: turkce.id, correct: 10, wrong: 0, empty: 0 }],
+        });
+        await repos.lessons.delete(turkce.id);
+        const remaining = await repos.trialTests.get(full.id);
+        expect(remaining?.results).toEqual([{ lessonId: tarih.id, correct: 20, wrong: 4, empty: 3 }]);
+        expect(remaining?.wrongTopicIds).toEqual([t3.id]);
+        expect(await repos.trialTests.get(turkceOnly.id)).toBeUndefined();
+      });
+
       it('appends in order and reorders', async () => {
         const { exam, turkce, tarih } = await seed();
         const cog = await repos.lessons.create({ examId: exam.id, name: 'Coğrafya' });
@@ -120,7 +149,7 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
       it('delete removes it from trial test wrong topics', async () => {
         const { exam, turkce, t1, t2 } = await seed();
         const test = await repos.trialTests.create({
-          examId: exam.id, lessonId: turkce.id, date: '2026-10-15', correct: 10, wrong: 2, empty: 0, wrongTopicIds: [t1.id, t2.id],
+          examId: exam.id, date: '2026-10-15', results: [{ lessonId: turkce.id, correct: 10, wrong: 2, empty: 0 }], wrongTopicIds: [t1.id, t2.id],
         });
         await repos.topics.delete(t1.id);
         expect((await repos.trialTests.get(test.id))?.wrongTopicIds).toEqual([t2.id]);
@@ -131,10 +160,10 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
       it('stores wrong topics and lists oldest first', async () => {
         const { exam, turkce, t1 } = await seed();
         await repos.trialTests.create({
-          examId: exam.id, lessonId: turkce.id, date: '2026-10-20', correct: 30, wrong: 8, empty: 2,
+          examId: exam.id, date: '2026-10-20', results: [{ lessonId: turkce.id, correct: 30, wrong: 8, empty: 2 }],
         });
         const first = await repos.trialTests.create({
-          examId: exam.id, lessonId: turkce.id, date: '2026-10-10', correct: 25, wrong: 10, empty: 5, wrongTopicIds: [t1.id, t1.id],
+          examId: exam.id, date: '2026-10-10', results: [{ lessonId: turkce.id, correct: 25, wrong: 10, empty: 5 }], wrongTopicIds: [t1.id, t1.id],
         });
         expect(first.wrongTopicIds).toEqual([t1.id]);
         expect(first.notes).toBe('');
@@ -147,24 +176,47 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
       it('update replaces wrong topics', async () => {
         const { exam, turkce, t1, t2 } = await seed();
         const test = await repos.trialTests.create({
-          examId: exam.id, lessonId: turkce.id, date: '2026-10-10', correct: 25, wrong: 10, empty: 5, wrongTopicIds: [t1.id],
+          examId: exam.id, date: '2026-10-10', results: [{ lessonId: turkce.id, correct: 25, wrong: 10, empty: 5 }], wrongTopicIds: [t1.id],
         });
-        const updated = await repos.trialTests.update(test.id, { correct: 26, wrongTopicIds: [t2.id] });
-        expect(updated.correct).toBe(26);
+        const results = [{ lessonId: turkce.id, correct: 26, wrong: 10, empty: 4 }];
+        const updated = await repos.trialTests.update(test.id, { results, wrongTopicIds: [t2.id] });
+        expect(updated.results).toEqual(results);
         expect(updated.wrongTopicIds).toEqual([t2.id]);
+      });
+
+      it('stores one result per lesson, a cleaned name, and wrong topics from several lessons', async () => {
+        const { exam, turkce, tarih, t1, t3 } = await seed();
+        const results = [
+          { lessonId: turkce.id, correct: 30, wrong: 8, empty: 2 },
+          { lessonId: tarih.id, correct: 20, wrong: 4, empty: 3 },
+        ];
+        const test = await repos.trialTests.create({
+          examId: exam.id, name: '  Deneme   5 ', date: '2026-10-10', results, wrongTopicIds: [t1.id, t3.id],
+        });
+        const stored = await repos.trialTests.get(test.id);
+        expect(stored?.name).toBe('Deneme 5');
+        expect(stored?.results).toEqual(results);
+        expect(stored?.wrongTopicIds.sort()).toEqual([t1.id, t3.id].sort());
+      });
+
+      it('rejects a test without results or with a lesson twice', async () => {
+        const { exam, turkce } = await seed();
+        await expect(repos.trialTests.create({ examId: exam.id, date: '2026-10-10', results: [] })).rejects.toThrow();
+        const result = { lessonId: turkce.id, correct: 1, wrong: 0, empty: 0 };
+        await expect(repos.trialTests.create({ examId: exam.id, date: '2026-10-10', results: [result, result] })).rejects.toThrow();
       });
 
       it('rejects invalid counts', async () => {
         const { exam, turkce } = await seed();
         await expect(
-          repos.trialTests.create({ examId: exam.id, lessonId: turkce.id, date: '2026-10-10', correct: -1, wrong: 0, empty: 0 }),
+          repos.trialTests.create({ examId: exam.id, date: '2026-10-10', results: [{ lessonId: turkce.id, correct: -1, wrong: 0, empty: 0 }] }),
         ).rejects.toThrow();
       });
 
       it('delete hides the test', async () => {
         const { exam, turkce } = await seed();
         const test = await repos.trialTests.create({
-          examId: exam.id, lessonId: turkce.id, date: '2026-10-10', correct: 1, wrong: 0, empty: 0,
+          examId: exam.id, date: '2026-10-10', results: [{ lessonId: turkce.id, correct: 1, wrong: 0, empty: 0 }],
         });
         await repos.trialTests.delete(test.id);
         expect(await repos.trialTests.get(test.id)).toBeUndefined();

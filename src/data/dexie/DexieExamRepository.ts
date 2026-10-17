@@ -2,6 +2,7 @@ import { validateExam, type ExamFields } from '@/domain/exam';
 import { cleanName } from '@/domain/importPlan';
 import { DEFAULT_WRONG_PENALTY } from '@/domain/net';
 import { createRecord, isActive, nowIso, updateRecord } from '@/domain/records';
+import { findInvalidQuestionCount } from '@/domain/trials';
 import type { Exam, Id } from '@/domain/types';
 import type { ChangeEmitter } from '../changeEmitter';
 import {
@@ -14,12 +15,14 @@ import {
 import { CASCADE_TABLES, deleteExamCascade } from './cascade';
 import type { StudyDatabase } from './db';
 
-function assertValid(fields: ExamFields) {
+function assertValid(fields: ExamFields & Pick<Exam, 'trialQuestionCounts'>) {
   const errors = validateExam(fields);
   const entries = Object.entries(errors);
   if (entries.length > 0) {
     throw new ValidationError(`Invalid exam: ${entries.map(([k, v]) => `${k}=${v}`).join(', ')}`);
   }
+  const badLesson = findInvalidQuestionCount(fields.trialQuestionCounts);
+  if (badLesson) throw new ValidationError(`Invalid question count for lesson ${badLesson}`);
 }
 
 export class DexieExamRepository implements ExamRepository {
@@ -39,11 +42,12 @@ export class DexieExamRepository implements ExamRepository {
   }
 
   async create(input: ExamInput): Promise<Exam> {
-    const fields: ExamFields = {
+    const fields = {
       name: cleanName(input.name),
       examDate: input.examDate,
       studyDeadline: input.studyDeadline ?? null,
       wrongPenalty: input.wrongPenalty ?? DEFAULT_WRONG_PENALTY,
+      trialQuestionCounts: input.trialQuestionCounts ?? {},
     };
     assertValid(fields);
     const exam = createRecord<Exam>(fields);

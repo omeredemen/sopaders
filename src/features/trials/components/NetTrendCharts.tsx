@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { netSeriesByLesson, netStats, type NetPoint } from '@/domain/trials';
+import { netSeriesByLesson, netStats, totalNetSeries, type NetPoint } from '@/domain/trials';
 import type { Exam, Lesson } from '@/domain/types';
 import { formatDate, formatNet, formatShortDate, formatSignedNet } from '@/shared/lib/format';
 import { useTrialTests } from '../hooks/useTrialTests';
@@ -24,7 +24,7 @@ function NetTooltip({ active, payload }: { active?: boolean; payload?: readonly 
   );
 }
 
-function LessonNetChart({ lessonName, points }: { lessonName: string; points: NetPoint[] }) {
+function NetChart({ title, points }: { title: string; points: NetPoint[] }) {
   const stats = netStats(points);
   const data: ChartPoint[] = points.map((p) => ({ ...p, label: formatShortDate(p.date) }));
   if (!stats) return null;
@@ -32,7 +32,7 @@ function LessonNetChart({ lessonName, points }: { lessonName: string; points: Ne
   return (
     <div className="chart rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <h3 className="truncate font-medium">{lessonName}</h3>
+        <h3 className="truncate font-medium">{title}</h3>
         <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{stats.count} deneme</span>
       </div>
       <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">
@@ -70,10 +70,14 @@ function LessonNetChart({ lessonName, points }: { lessonName: string; points: Ne
   );
 }
 
-/** Net trend per lesson (small multiples), for lessons that have at least one trial test. */
+/**
+ * Total net of full trial tests, then net trend per lesson (small multiples) for lessons
+ * that have at least one result.
+ */
 export function NetTrendCharts({ exam, lessons }: { exam: Exam; lessons: Lesson[] }) {
   const { data: tests = [] } = useTrialTests(exam.id);
   const series = useMemo(() => netSeriesByLesson(tests, exam.wrongPenalty), [tests, exam.wrongPenalty]);
+  const total = useMemo(() => totalNetSeries(tests, exam.wrongPenalty), [tests, exam.wrongPenalty]);
   const withTests = lessons.filter((l) => (series.get(l.id)?.length ?? 0) > 0);
 
   return (
@@ -93,8 +97,9 @@ export function NetTrendCharts({ exam, lessons }: { exam: Exam; lessons: Lesson[
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {total.length > 0 && <NetChart title="Toplam net" points={total} />}
           {withTests.map((lesson) => (
-            <LessonNetChart key={lesson.id} lessonName={lesson.name} points={series.get(lesson.id) ?? []} />
+            <NetChart key={lesson.id} title={lesson.name} points={series.get(lesson.id) ?? []} />
           ))}
         </div>
       )}

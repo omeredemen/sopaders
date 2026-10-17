@@ -25,7 +25,7 @@ describe('saveTrialTest', () => {
 
   it('creates the test and marks wrong topics for review (even finished ones)', async () => {
     const result = await saveTrialTest(repos, {
-      examId: ids.examId, lessonId: ids.lessonId, date: '2026-10-15', correct: 30, wrong: 8, empty: 2,
+      examId: ids.examId, date: '2026-10-15', results: [{ lessonId: ids.lessonId, correct: 30, wrong: 8, empty: 2 }],
       wrongTopicIds: [ids.t1, ids.t2],
     });
     expect(result.markedForReview).toBe(2);
@@ -35,7 +35,7 @@ describe('saveTrialTest', () => {
 
   it('on edit, only marks newly added wrong topics', async () => {
     const { test } = await saveTrialTest(repos, {
-      examId: ids.examId, lessonId: ids.lessonId, date: '2026-10-15', correct: 30, wrong: 8, empty: 2,
+      examId: ids.examId, date: '2026-10-15', results: [{ lessonId: ids.lessonId, correct: 30, wrong: 8, empty: 2 }],
       wrongTopicIds: [ids.t1],
     });
     // User reviews topic A and marks it finished again.
@@ -43,11 +43,11 @@ describe('saveTrialTest', () => {
 
     const result = await saveTrialTest(
       repos,
-      { examId: ids.examId, lessonId: ids.lessonId, date: '2026-10-15', correct: 31, wrong: 7, empty: 2, wrongTopicIds: [ids.t1, ids.t3] },
+      { examId: ids.examId, date: '2026-10-15', results: [{ lessonId: ids.lessonId, correct: 31, wrong: 7, empty: 2 }], wrongTopicIds: [ids.t1, ids.t3] },
       test.id,
     );
     expect(result.markedForReview).toBe(1);
-    expect(result.test.correct).toBe(31);
+    expect(result.test.results[0]?.correct).toBe(31);
     expect(await statuses()).toEqual({ A: 'finished', B: 'not_started', C: 'needs_review' });
   });
 
@@ -55,7 +55,7 @@ describe('saveTrialTest', () => {
     await expect(
       saveTrialTest(
         repos,
-        { examId: ids.examId, lessonId: ids.lessonId, date: '2026-10-15', correct: 1, wrong: 0, empty: 0, wrongTopicIds: [ids.t2] },
+        { examId: ids.examId, date: '2026-10-15', results: [{ lessonId: ids.lessonId, correct: 1, wrong: 0, empty: 0 }], wrongTopicIds: [ids.t2] },
         'missing',
       ),
     ).rejects.toThrow();

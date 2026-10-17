@@ -18,13 +18,18 @@ const base = (id: string, updatedAt = '2026-10-01T00:00:00.000Z', deletedAt: str
 });
 
 const sampleData = (): BackupData => ({
-  exams: [{ ...base('e1'), name: 'KPSS', examDate: '2026-12-06', studyDeadline: null, wrongPenalty: 4 }],
+  exams: [{ ...base('e1'), name: 'KPSS', examDate: '2026-12-06', studyDeadline: null, wrongPenalty: 4, trialQuestionCounts: { l1: 40 } }],
   lessons: [{ ...base('l1'), examId: 'e1', name: 'Türkçe', order: 0 }],
   topics: [
     { ...base('t1'), lessonId: 'l1', name: 'Paragraf', status: 'finished', order: 0 },
     { ...base('t2', '2026-10-02T00:00:00.000Z', '2026-10-02T00:00:00.000Z'), lessonId: 'l1', name: 'Eski', status: 'started', order: 1 },
   ],
-  trialTests: [{ ...base('tt1'), examId: 'e1', lessonId: 'l1', date: '2026-10-05', correct: 30, wrong: 8, empty: 2, notes: '' }],
+  trialTests: [
+    {
+      ...base('tt1'), examId: 'e1', name: '', date: '2026-10-05', notes: '',
+      results: [{ lessonId: 'l1', correct: 30, wrong: 8, empty: 2 }],
+    },
+  ],
   trialTestWrongTopics: [{ ...base('w1'), trialTestId: 'tt1', topicId: 't1' }],
 });
 
@@ -51,6 +56,36 @@ describe('parseBackupFile', () => {
     (data.topics[1] as unknown as Record<string, unknown>).order = 'x';
     const result = parseBackupFile(JSON.stringify(createBackupFile(data, '')));
     expect(result).toEqual({ ok: false, error: { code: 'invalid_record', table: 'topics', index: 1, field: 'order' } });
+  });
+
+  it('rejects malformed question counts', () => {
+    const data = sampleData();
+    (data.exams[0] as unknown as Record<string, unknown>).trialQuestionCounts = { l1: 'x' };
+    const result = parseBackupFile(JSON.stringify(createBackupFile(data, '')));
+    expect(result).toEqual({ ok: false, error: { code: 'invalid_record', table: 'exams', index: 0, field: 'trialQuestionCounts' } });
+  });
+
+  it('migrates schema 1 trial tests (one lesson each) to per-lesson results', () => {
+    const v1 = {
+      app: 'study-tracker',
+      schemaVersion: 1,
+      exportedAt: 'x',
+      data: {
+        ...sampleData(),
+        exams: [{ ...base('e1'), name: 'KPSS', examDate: '2026-12-06', studyDeadline: null, wrongPenalty: 4 }],
+        trialTests: [{ ...base('tt1'), examId: 'e1', lessonId: 'l1', date: '2026-10-05', correct: 30, wrong: 8, empty: 2, notes: '' }],
+      },
+    };
+    const result = parseBackupFile(JSON.stringify(v1));
+    expect(result.ok && result.backup.data.trialTests).toEqual(sampleData().trialTests);
+    expect(result.ok && result.backup.data.exams[0]?.trialQuestionCounts).toEqual({});
+  });
+
+  it('rejects malformed trial test results', () => {
+    const data = sampleData();
+    (data.trialTests[0]!.results[0] as unknown as Record<string, unknown>).wrong = 'x';
+    const result = parseBackupFile(JSON.stringify(createBackupFile(data, '')));
+    expect(result).toEqual({ ok: false, error: { code: 'invalid_record', table: 'trialTests', index: 0, field: 'results' } });
   });
 
   it('treats missing tables as empty', () => {

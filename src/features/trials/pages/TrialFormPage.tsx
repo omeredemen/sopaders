@@ -53,7 +53,7 @@ export function TrialFormPage() {
         <PageHeader title={title} backTo={listPath} />
         <EmptyState
           title="Önce ders ekle"
-          description="Deneme sonucu bir derse kaydedilir."
+          description="Deneme sonuçları ders ders kaydedilir."
           action={<Link to={`/exams/${exam.id}`} className={linkClass}>Derslere git</Link>}
         />
       </>
@@ -61,11 +61,11 @@ export function TrialFormPage() {
   }
 
   const initial: TrialFormValues | undefined = existing && {
-    lessonId: existing.lessonId,
+    name: existing.name,
     date: existing.date,
-    correct: String(existing.correct),
-    wrong: String(existing.wrong),
-    empty: String(existing.empty),
+    counts: Object.fromEntries(
+      existing.results.map((r) => [r.lessonId, { correct: String(r.correct), wrong: String(r.wrong), empty: String(r.empty) }]),
+    ),
     notes: existing.notes,
     wrongTopicIds: existing.wrongTopicIds,
   };

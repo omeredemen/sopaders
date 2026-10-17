@@ -3,7 +3,10 @@ import type { BaseRecord, Exam, IsoDateTime, Lesson, Topic, TrialTest, TrialTest
 /** Internal identifier from the original name "study-tracker". Do NOT rename it: existing backup files would no longer be recognized. */
 export const BACKUP_APP_ID = 'study-tracker';
 /** Bump when the stored data shape changes; add a migration in parseBackupFile. */
-export const BACKUP_SCHEMA_VERSION = 1;
+export const BACKUP_SCHEMA_VERSION = 3;
+// History: 1 → 2: a trial test covers the whole exam (`results` per lesson, `name`)
+// instead of one lesson (`lessonId`, `correct`, `wrong`, `empty`). See migrateTrialTestV1.
+// 2 → 3: exams have `trialQuestionCounts` (defaults to {}). See migrateExamV2.
 
 export const BACKUP_TABLES = ['exams', 'lessons', 'topics', 'trialTests', 'trialTestWrongTopics'] as const;
 export type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -28,17 +31,33 @@ export function createBackupFile(data: BackupData, exportedAt: IsoDateTime): Bac
   return { app: BACKUP_APP_ID, schemaVersion: BACKUP_SCHEMA_VERSION, exportedAt, data };
 }
 
+// ---- Migrations ------------------------------------------------------------
+
+/**
+ * Schema 1 trial test (one lesson per test) → schema 2 (one result per lesson).
+ * Keeps updatedAt: the content is the same, so merging must not see it as a newer edit.
+ * Used for old backup files and by the IndexedDB upgrade.
+ */
+export function migrateTrialTestV1(old: Record<string, unknown>): Record<string, unknown> {
+  if (Array.isArray(old.results)) return old;
+  const { lessonId, correct, wrong, empty, ...rest } = old;
+  return { ...rest, name: typeof old.name === 'string' ? old.name : '', results: [{ lessonId, correct, wrong, empty }] };
+}
+
+/** Schema 2 exam → schema 3: adds empty `trialQuestionCounts`. Keeps updatedAt (same reason as above). */
+export function migrateExamV2(old: Record<string, unknown>): Record<string, unknown> {
+  return isCountMap(old.trialQuestionCounts) ? old : { ...old, trialQuestionCounts: {} };
+}
+
 // ---- Validation ------------------------------------------------------------
 
-type FieldType = 'string' | 'number' | 'string|null';
+type FieldType = 'string' | 'number' | 'string|null' | 'results' | 'countMap';
 
 const RECORD_FIELDS: Record<BackupTable, Record<string, FieldType>> = {
-  exams: { name: 'string', examDate: 'string', studyDeadline: 'string|null', wrongPenalty: 'number' },
+  exams: { name: 'string', examDate: 'string', studyDeadline: 'string|null', wrongPenalty: 'number', trialQuestionCounts: 'countMap' },
   lessons: { examId: 'string', name: 'string', order: 'number' },
   topics: { lessonId: 'string', name: 'string', status: 'string', order: 'number' },
-  trialTests: {
-    examId: 'string', lessonId: 'string', date: 'string', correct: 'number', wrong: 'number', empty: 'number', notes: 'string',
-  },
+  trialTests: { examId: 'string', name: 'string', date: 'string', results: 'results', notes: 'string' },
   trialTestWrongTopics: { trialTestId: 'string', topicId: 'string' },
 };
 
@@ -46,9 +65,32 @@ const BASE_FIELDS: Record<string, FieldType> = {
   id: 'string', createdAt: 'string', updatedAt: 'string', deletedAt: 'string|null',
 };
 
+function isFiniteNumber(value: unknown): boolean {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/** An exam's `trialQuestionCounts`: { lessonId: number }. */
+function isCountMap(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.values(value).every(isFiniteNumber);
+}
+
+/** A trial test's `results`: [{ lessonId, correct, wrong, empty }, …]. */
+function isResultList(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every((r: unknown) => {
+      if (typeof r !== 'object' || r === null) return false;
+      const { lessonId, correct, wrong, empty } = r as Record<string, unknown>;
+      return typeof lessonId === 'string' && [correct, wrong, empty].every(isFiniteNumber);
+    })
+  );
+}
+
 function hasType(value: unknown, type: FieldType): boolean {
   if (type === 'string|null') return value === null || typeof value === 'string';
-  if (type === 'number') return typeof value === 'number' && Number.isFinite(value);
+  if (type === 'number') return isFiniteNumber(value);
+  if (type === 'results') return isResultList(value);
+  if (type === 'countMap') return isCountMap(value);
   return typeof value === type;
 }
 
@@ -77,7 +119,15 @@ export function parseBackupFile(text: string): BackupParseResult {
     return { ok: false, error: { code: 'newer_version', version: file.schemaVersion } };
   }
 
-  const data = file.data as Record<string, unknown>;
+  const data = { ...(file.data as Record<string, unknown>) };
+  if (file.schemaVersion < 2 && Array.isArray(data.trialTests)) {
+    data.trialTests = data.trialTests.map((t: unknown) =>
+      typeof t === 'object' && t !== null ? migrateTrialTestV1(t as Record<string, unknown>) : t,
+    );
+  }
+  if (file.schemaVersion < 3 && Array.isArray(data.exams)) {
+    data.exams = data.exams.map((e: unknown) => (typeof e === 'object' && e !== null ? migrateExamV2(e as Record<string, unknown>) : e));
+  }
   for (const table of BACKUP_TABLES) {
     const records = data[table] ?? [];
     if (!Array.isArray(records)) return { ok: false, error: { code: 'invalid_record', table, index: -1, field: table } };
