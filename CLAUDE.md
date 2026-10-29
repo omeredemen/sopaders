@@ -59,7 +59,7 @@ src/
 │   ├── statuses.ts            # getTopicStatus, nextTopicStatus, isDoneStatus
 │   ├── net.ts                 # calculateNet, validateTrialCounts
 │   ├── dates.ts               # LocalDate helpers, daysLeft, effectiveDeadline
-│   ├── pace.ts                # dailyPace
+│   ├── pace.ts                # dailyPace, studyTempo
 │   ├── statusSummary.ts       # summarizeStatuses, summarizeByLesson
 │   ├── exam.ts                # validateExam
 │   ├── importPlan.ts          # planTopicImport (dedupe/match lessons), name normalization
@@ -108,6 +108,10 @@ src/
 - **Daily pace** = unfinished topics / days left to `effectiveDeadline(exam)`
   (study deadline, or exam date). Deadline today counts as 1 day; past deadline → `overdue`.
   "Unfinished" = any status with `countsAsDone: false`.
+- **Actual tempo** (`studyTempo`) = done topics / days since `exam.studyStartDate` (start day and today both count).
+  The start date defaults to today when left empty (form and `exams.create`); exams from before it existed use the day
+  they were created (`migrateExamV3`). Projection: same tempo from tomorrow → finish date, compared with the deadline.
+  Topics have no completion date, so topics already done before the start date also count.
 - Ordering: lessons and topics have an integer `order`. New items append at the end;
   `reorder(parentId, orderedIds)` rewrites `order` to 0..n-1.
 - Names are cleaned with `cleanName` (trim + collapse spaces). Name comparisons use

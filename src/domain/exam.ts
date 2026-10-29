@@ -3,7 +3,7 @@ import { daysBetween, isLocalDate } from './dates';
 import { isValidWrongPenalty } from './net';
 import type { Exam } from './types';
 
-export type ExamFields = Pick<Exam, 'name' | 'examDate' | 'studyDeadline' | 'wrongPenalty'>;
+export type ExamFields = Pick<Exam, 'name' | 'examDate' | 'studyStartDate' | 'studyDeadline' | 'wrongPenalty'>;
 
 export type ExamFieldError = 'required' | 'invalid_date' | 'deadline_after_exam' | 'invalid_penalty';
 export type ExamValidationErrors = Partial<Record<keyof ExamFields, ExamFieldError>>;
@@ -22,6 +22,9 @@ export function validateExam(fields: ExamFields): ExamValidationErrors {
       errors.studyDeadline = 'deadline_after_exam';
     }
   }
+
+  if (!fields.studyStartDate) errors.studyStartDate = 'required';
+  else if (!isLocalDate(fields.studyStartDate)) errors.studyStartDate = 'invalid_date';
 
   if (!isValidWrongPenalty(fields.wrongPenalty)) errors.wrongPenalty = 'invalid_penalty';
   return errors;

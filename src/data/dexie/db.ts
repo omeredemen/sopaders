@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { migrateExamV2, migrateTrialTestV1 } from '@/domain/backup';
+import { migrateExamV2, migrateExamV3, migrateTrialTestV1 } from '@/domain/backup';
 import type { Exam, Lesson, Topic, TrialTest, TrialTestWrongTopic } from '@/domain/types';
 
 /** Internal identifier from the original name "study-tracker". Do NOT rename it: every device would open a new, empty database. */
@@ -46,6 +46,17 @@ export class StudyDatabase extends Dexie {
           .toCollection()
           .modify((exam: Record<string, unknown>, ref: { value: unknown }) => {
             ref.value = migrateExamV2(exam);
+          }),
+      );
+    // Exams get a study start date (tempo is measured from it); existing ones use their creation day.
+    this.version(4)
+      .stores({})
+      .upgrade((tx) =>
+        tx
+          .table('exams')
+          .toCollection()
+          .modify((exam: Record<string, unknown>, ref: { value: unknown }) => {
+            ref.value = migrateExamV3(exam);
           }),
       );
   }

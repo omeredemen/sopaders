@@ -93,6 +93,8 @@ export function ExamDetailPage() {
             <dd>
               {formatDate(exam.examDate)} · <strong>{formatDaysLeft(daysLeft(exam.examDate, today))}</strong>
             </dd>
+            <dt className="text-slate-500 dark:text-slate-400">Başlangıç</dt>
+            <dd>{formatDate(exam.studyStartDate)}</dd>
             {exam.studyDeadline && (
               <>
                 <dt className="text-slate-500 dark:text-slate-400">Çalışma bitişi</dt>

@@ -1,6 +1,6 @@
 import { TOPIC_STATUSES } from '@/config/topicStatuses';
 import { daysLeft, effectiveDeadline } from './dates';
-import { dailyPace, type DailyPace } from './pace';
+import { dailyPace, studyTempo, type DailyPace, type StudyTempo } from './pace';
 import type { StatusList } from './statuses';
 import { summarizeByLesson, summarizeStatuses, type LessonStatusSummary, type StatusSummary } from './statusSummary';
 import type { Exam, Lesson, LocalDate, Topic } from './types';
@@ -14,6 +14,8 @@ export interface ExamDashboard {
   deadlineIsExamDate: boolean;
   daysToDeadline: number;
   pace: DailyPace;
+  /** Actual tempo since the study start date, with a projected finish date. */
+  tempo: StudyTempo;
   overall: StatusSummary;
   /** In lesson order. */
   lessons: LessonStatusSummary[];
@@ -24,7 +26,7 @@ export interface ExamDashboard {
  * `lessons` and `topics` must be the exam's active records.
  */
 export function buildExamDashboard(
-  exam: Pick<Exam, 'examDate' | 'studyDeadline'>,
+  exam: Pick<Exam, 'examDate' | 'studyStartDate' | 'studyDeadline'>,
   lessons: readonly Pick<Lesson, 'id' | 'name'>[],
   topics: readonly Pick<Topic, 'lessonId' | 'status'>[],
   today: LocalDate,
@@ -39,6 +41,7 @@ export function buildExamDashboard(
     deadlineIsExamDate: exam.studyDeadline === null,
     daysToDeadline,
     pace: dailyPace(overall.unfinished, daysToDeadline),
+    tempo: studyTempo({ done: overall.done, unfinished: overall.unfinished, startDate: exam.studyStartDate, deadline, today }),
     overall,
     lessons: summarizeByLesson(lessons, topics, statuses),
   };

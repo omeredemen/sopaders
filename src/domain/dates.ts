@@ -35,6 +35,11 @@ export function daysBetween(from: LocalDate, to: LocalDate): number {
   return Math.round((toUtcDay(to) - toUtcDay(from)) / MS_PER_DAY);
 }
 
+/** The date `days` calendar days after `date` (negative goes back). */
+export function addDays(date: LocalDate, days: number): LocalDate {
+  return new Date(toUtcDay(date) + days * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
 /** Days left until `target`: 1 = tomorrow, 0 = today, negative = past. */
 export function daysLeft(target: LocalDate, today: LocalDate): number {
   return daysBetween(today, target);

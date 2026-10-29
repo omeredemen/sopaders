@@ -1,12 +1,14 @@
+import { toLocalDate } from './dates';
 import type { BaseRecord, Exam, IsoDateTime, Lesson, Topic, TrialTest, TrialTestWrongTopic } from './types';
 
 /** Internal identifier from the original name "study-tracker". Do NOT rename it: existing backup files would no longer be recognized. */
 export const BACKUP_APP_ID = 'study-tracker';
 /** Bump when the stored data shape changes; add a migration in parseBackupFile. */
-export const BACKUP_SCHEMA_VERSION = 3;
+export const BACKUP_SCHEMA_VERSION = 4;
 // History: 1 → 2: a trial test covers the whole exam (`results` per lesson, `name`)
 // instead of one lesson (`lessonId`, `correct`, `wrong`, `empty`). See migrateTrialTestV1.
 // 2 → 3: exams have `trialQuestionCounts` (defaults to {}). See migrateExamV2.
+// 3 → 4: exams have `studyStartDate` (defaults to the day the exam was created). See migrateExamV3.
 
 export const BACKUP_TABLES = ['exams', 'lessons', 'topics', 'trialTests', 'trialTestWrongTopics'] as const;
 export type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -49,12 +51,23 @@ export function migrateExamV2(old: Record<string, unknown>): Record<string, unkn
   return isCountMap(old.trialQuestionCounts) ? old : { ...old, trialQuestionCounts: {} };
 }
 
+/**
+ * Schema 3 exam → schema 4: adds `studyStartDate`, the local calendar day the exam was created.
+ * Keeps updatedAt (same reason as above). Leaves the record as is if `createdAt` isn't a timestamp,
+ * so validation reports it.
+ */
+export function migrateExamV3(old: Record<string, unknown>): Record<string, unknown> {
+  if (typeof old.studyStartDate === 'string' || typeof old.createdAt !== 'string') return old;
+  const created = new Date(old.createdAt);
+  return Number.isNaN(created.getTime()) ? old : { ...old, studyStartDate: toLocalDate(created) };
+}
+
 // ---- Validation ------------------------------------------------------------
 
 type FieldType = 'string' | 'number' | 'string|null' | 'results' | 'countMap';
 
 const RECORD_FIELDS: Record<BackupTable, Record<string, FieldType>> = {
-  exams: { name: 'string', examDate: 'string', studyDeadline: 'string|null', wrongPenalty: 'number', trialQuestionCounts: 'countMap' },
+  exams: { name: 'string', examDate: 'string', studyStartDate: 'string', studyDeadline: 'string|null', wrongPenalty: 'number', trialQuestionCounts: 'countMap' },
   lessons: { examId: 'string', name: 'string', order: 'number' },
   topics: { lessonId: 'string', name: 'string', status: 'string', order: 'number' },
   trialTests: { examId: 'string', name: 'string', date: 'string', results: 'results', notes: 'string' },
@@ -127,6 +140,9 @@ export function parseBackupFile(text: string): BackupParseResult {
   }
   if (file.schemaVersion < 3 && Array.isArray(data.exams)) {
     data.exams = data.exams.map((e: unknown) => (typeof e === 'object' && e !== null ? migrateExamV2(e as Record<string, unknown>) : e));
+  }
+  if (file.schemaVersion < 4 && Array.isArray(data.exams)) {
+    data.exams = data.exams.map((e: unknown) => (typeof e === 'object' && e !== null ? migrateExamV3(e as Record<string, unknown>) : e));
   }
   for (const table of BACKUP_TABLES) {
     const records = data[table] ?? [];

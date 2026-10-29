@@ -16,7 +16,7 @@ const topics = [
 
 describe('buildExamDashboard', () => {
   it('uses the study deadline for pace when set', () => {
-    const d = buildExamDashboard({ examDate: '2026-12-06', studyDeadline: '2026-10-25' }, lessons, topics, '2026-10-15');
+    const d = buildExamDashboard({ studyStartDate: '2026-10-06', examDate: '2026-12-06', studyDeadline: '2026-10-25' }, lessons, topics, '2026-10-15');
     expect(d.daysToExam).toBe(52);
     expect(d.deadline).toBe('2026-10-25');
     expect(d.deadlineIsExamDate).toBe(false);
@@ -26,14 +26,14 @@ describe('buildExamDashboard', () => {
   });
 
   it('falls back to the exam date without a study deadline', () => {
-    const d = buildExamDashboard({ examDate: '2026-10-21', studyDeadline: null }, lessons, topics, '2026-10-15');
+    const d = buildExamDashboard({ studyStartDate: '2026-10-06', examDate: '2026-10-21', studyDeadline: null }, lessons, topics, '2026-10-15');
     expect(d.deadline).toBe('2026-10-21');
     expect(d.deadlineIsExamDate).toBe(true);
     expect(d.pace).toEqual({ kind: 'pace', unfinished: 3, daysLeft: 6, perDay: 0.5 });
   });
 
   it('summarizes overall and per lesson', () => {
-    const d = buildExamDashboard({ examDate: '2026-12-06', studyDeadline: null }, lessons, topics, '2026-10-15');
+    const d = buildExamDashboard({ studyStartDate: '2026-10-06', examDate: '2026-12-06', studyDeadline: null }, lessons, topics, '2026-10-15');
     expect(d.overall.total).toBe(5);
     expect(d.overall.done).toBe(2);
     expect(d.lessons.map((l) => [l.lessonName, l.summary.done, l.summary.total])).toEqual([
@@ -43,12 +43,21 @@ describe('buildExamDashboard', () => {
   });
 
   it('reports overdue once the deadline has passed', () => {
-    const d = buildExamDashboard({ examDate: '2026-12-06', studyDeadline: '2026-10-10' }, lessons, topics, '2026-10-15');
+    const d = buildExamDashboard({ studyStartDate: '2026-10-06', examDate: '2026-12-06', studyDeadline: '2026-10-10' }, lessons, topics, '2026-10-15');
     expect(d.pace).toEqual({ kind: 'overdue', unfinished: 3, daysOverdue: 5 });
   });
 
+  it('measures the actual tempo from the study start date', () => {
+    const d = buildExamDashboard({ studyStartDate: '2026-10-06', examDate: '2026-12-06', studyDeadline: '2026-10-25' }, lessons, topics, '2026-10-15');
+    // 2 finished over 10 days (6th..15th) → 0.2/day; 3 left → 15 more days → 30 Oct, after the 25 Oct deadline
+    expect(d.tempo).toEqual({
+      kind: 'tempo', done: 2, daysStudied: 10, perDay: 0.2,
+      projection: { kind: 'finish', date: '2026-10-30', onTrack: false },
+    });
+  });
+
   it('handles an exam with no topics', () => {
-    const d = buildExamDashboard({ examDate: '2026-12-06', studyDeadline: null }, [], [], '2026-10-15');
+    const d = buildExamDashboard({ studyStartDate: '2026-10-06', examDate: '2026-12-06', studyDeadline: null }, [], [], '2026-10-15');
     expect(d.overall.total).toBe(0);
     expect(d.pace).toEqual({ kind: 'done' });
     expect(d.lessons).toEqual([]);

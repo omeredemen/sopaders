@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isExamValid, validateExam } from './exam';
 
-const valid = { name: 'KPSS 2026', examDate: '2026-12-01', studyDeadline: null, wrongPenalty: 4 };
+const valid = { name: 'KPSS 2026', examDate: '2026-12-01', studyStartDate: '2026-10-01', studyDeadline: null, wrongPenalty: 4 };
 
 describe('validateExam', () => {
   it('accepts a valid exam', () => {
@@ -16,6 +16,11 @@ describe('validateExam', () => {
   it('rejects invalid dates', () => {
     expect(validateExam({ ...valid, examDate: '2026-02-30' }).examDate).toBe('invalid_date');
     expect(validateExam({ ...valid, studyDeadline: 'x' }).studyDeadline).toBe('invalid_date');
+  });
+
+  it('requires a valid study start date', () => {
+    expect(validateExam({ ...valid, studyStartDate: '' }).studyStartDate).toBe('required');
+    expect(validateExam({ ...valid, studyStartDate: '2026-13-01' }).studyStartDate).toBe('invalid_date');
   });
 
   it('rejects a study deadline after the exam (same day is fine)', () => {

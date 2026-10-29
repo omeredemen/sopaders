@@ -29,6 +29,8 @@ export interface ChangeFeed {
 export interface ExamInput {
   name: string;
   examDate: LocalDate;
+  /** Defaults to today. */
+  studyStartDate?: LocalDate;
   studyDeadline?: LocalDate | null;
   /** Defaults to DEFAULT_WRONG_PENALTY. */
   wrongPenalty?: number;

@@ -1,5 +1,6 @@
 import Dexie from 'dexie';
 import { describe, expect, it } from 'vitest';
+import { toLocalDate } from '@/domain/dates';
 import { newId } from '@/domain/records';
 import { describeRepositoryContract } from '../repositoryContract';
 import { createDexieRepositories } from '.';
@@ -31,7 +32,9 @@ describe('Dexie schema upgrades', () => {
     };
     await v1.table('exams').add(exam);
     v1.close();
-    expect(await new StudyDatabase(dbName).exams.get('e1')).toEqual({ ...exam, trialQuestionCounts: {} });
+    expect(await new StudyDatabase(dbName).exams.get('e1')).toEqual({
+      ...exam, trialQuestionCounts: {}, studyStartDate: toLocalDate(new Date(exam.createdAt)),
+    });
   });
 
   it('v2: turns one-lesson trial tests into tests with one lesson result, keeping updatedAt', async () => {

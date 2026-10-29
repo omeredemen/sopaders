@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useRepositories } from '@/data/RepositoryProvider';
+import { todayLocalDate } from '@/domain/dates';
 import { validateExam, type ExamFields, type ExamValidationErrors } from '@/domain/exam';
 import { DEFAULT_WRONG_PENALTY } from '@/domain/net';
 import type { Exam } from '@/domain/types';
@@ -22,6 +23,7 @@ export function ExamFormDialog({ exam, onClose, onSaved }: ExamFormDialogProps) 
   const run = useAction();
   const [name, setName] = useState(exam?.name ?? '');
   const [examDate, setExamDate] = useState(exam?.examDate ?? '');
+  const [studyStartDate, setStudyStartDate] = useState(exam?.studyStartDate ?? '');
   const [studyDeadline, setStudyDeadline] = useState(exam?.studyDeadline ?? '');
   const [penalty, setPenalty] = useState(String(exam?.wrongPenalty ?? DEFAULT_WRONG_PENALTY));
   const [errors, setErrors] = useState<ExamValidationErrors>({});
@@ -32,6 +34,7 @@ export function ExamFormDialog({ exam, onClose, onSaved }: ExamFormDialogProps) 
     const fields: ExamFields = {
       name,
       examDate,
+      studyStartDate: studyStartDate || todayLocalDate(),
       studyDeadline: studyDeadline || null,
       wrongPenalty: parseDecimal(penalty),
     };
@@ -73,6 +76,14 @@ export function ExamFormDialog({ exam, onClose, onSaved }: ExamFormDialogProps) 
           value={examDate}
           onChange={(e) => setExamDate(e.target.value)}
           error={message('examDate')}
+        />
+        <FormField
+          label="Çalışma başlangıç tarihi (isteğe bağlı)"
+          type="date"
+          value={studyStartDate}
+          onChange={(e) => setStudyStartDate(e.target.value)}
+          error={message('studyStartDate')}
+          hint="Çalışmaya başladığın gün. Gerçek tempon bu günden itibaren hesaplanır. Boş bırakırsan bugün kullanılır."
         />
         <FormField
           label="Çalışma bitiş tarihi (isteğe bağlı)"

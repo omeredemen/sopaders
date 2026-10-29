@@ -22,6 +22,8 @@ export interface BaseRecord {
 export interface Exam extends BaseRecord {
   name: string;
   examDate: LocalDate;
+  /** Day the user started studying for this exam. The actual tempo is measured from here. */
+  studyStartDate: LocalDate;
   studyDeadline: LocalDate | null;
   /** How many wrong answers cancel one correct answer. 0 means no penalty. */
   wrongPenalty: number;

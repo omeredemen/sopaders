@@ -4,6 +4,7 @@
  * implementation should call it the same way.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { todayLocalDate } from '@/domain/dates';
 import type { Repositories } from './repositories';
 
 export function describeRepositoryContract(name: string, makeRepos: () => Promise<Repositories> | Repositories) {
@@ -34,6 +35,14 @@ export function describeRepositoryContract(name: string, makeRepos: () => Promis
         expect(sooner.wrongPenalty).toBe(4);
         expect(later.studyDeadline).toBeNull();
         expect((await repos.exams.list()).map((e) => e.name)).toEqual(['KPSS', 'AGS']);
+      });
+
+      it('stores the study start date, defaulting to today', async () => {
+        const defaulted = await repos.exams.create({ name: 'KPSS', examDate: '2026-12-01' });
+        expect(defaulted.studyStartDate).toBe(todayLocalDate());
+        const given = await repos.exams.create({ name: 'AGS', examDate: '2027-06-01', studyStartDate: '2026-09-01' });
+        expect((await repos.exams.get(given.id))?.studyStartDate).toBe('2026-09-01');
+        await expect(repos.exams.update(given.id, { studyStartDate: '2026-02-30' })).rejects.toThrow();
       });
 
       it('updates and bumps updatedAt', async () => {

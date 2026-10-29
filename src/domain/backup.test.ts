@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { toLocalDate } from './dates';
 import {
   countActiveRecords,
   createBackupFile,
@@ -18,7 +19,7 @@ const base = (id: string, updatedAt = '2026-10-01T00:00:00.000Z', deletedAt: str
 });
 
 const sampleData = (): BackupData => ({
-  exams: [{ ...base('e1'), name: 'KPSS', examDate: '2026-12-06', studyDeadline: null, wrongPenalty: 4, trialQuestionCounts: { l1: 40 } }],
+  exams: [{ ...base('e1'), name: 'KPSS', examDate: '2026-12-06', studyStartDate: '2026-10-01', studyDeadline: null, wrongPenalty: 4, trialQuestionCounts: { l1: 40 } }],
   lessons: [{ ...base('l1'), examId: 'e1', name: 'Türkçe', order: 0 }],
   topics: [
     { ...base('t1'), lessonId: 'l1', name: 'Paragraf', status: 'finished', order: 0 },
@@ -79,6 +80,15 @@ describe('parseBackupFile', () => {
     const result = parseBackupFile(JSON.stringify(v1));
     expect(result.ok && result.backup.data.trialTests).toEqual(sampleData().trialTests);
     expect(result.ok && result.backup.data.exams[0]?.trialQuestionCounts).toEqual({});
+  });
+
+  it('migrates schema 3 exams: study start date = local day the exam was created', () => {
+    const { studyStartDate: _, ...v3Exam } = sampleData().exams[0]!;
+    const v3 = { app: 'study-tracker', schemaVersion: 3, exportedAt: 'x', data: { ...sampleData(), exams: [v3Exam] } };
+    const result = parseBackupFile(JSON.stringify(v3));
+    const exam = result.ok ? result.backup.data.exams[0] : undefined;
+    expect(exam?.studyStartDate).toBe(toLocalDate(new Date(v3Exam.createdAt)));
+    expect(exam?.updatedAt).toBe(v3Exam.updatedAt);
   });
 
   it('rejects malformed trial test results', () => {

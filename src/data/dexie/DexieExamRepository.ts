@@ -1,3 +1,4 @@
+import { todayLocalDate } from '@/domain/dates';
 import { validateExam, type ExamFields } from '@/domain/exam';
 import { cleanName } from '@/domain/importPlan';
 import { DEFAULT_WRONG_PENALTY } from '@/domain/net';
@@ -45,6 +46,7 @@ export class DexieExamRepository implements ExamRepository {
     const fields = {
       name: cleanName(input.name),
       examDate: input.examDate,
+      studyStartDate: input.studyStartDate ?? todayLocalDate(),
       studyDeadline: input.studyDeadline ?? null,
       wrongPenalty: input.wrongPenalty ?? DEFAULT_WRONG_PENALTY,
       trialQuestionCounts: input.trialQuestionCounts ?? {},
